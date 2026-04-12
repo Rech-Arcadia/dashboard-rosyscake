@@ -73,6 +73,18 @@ const tabs = [
 @media (max-width: 640px) {
   .status-filter {
     overflow-x: auto;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .status-filter::-webkit-scrollbar {
+    display: none;
+  }
+
+  .status-filter__tab {
+    padding: var(--space-2);
+    font-size: var(--font-size-xs);
   }
 }
 </style>

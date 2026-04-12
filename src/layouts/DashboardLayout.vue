@@ -33,6 +33,8 @@ function closeSidebar() {
 .layout {
   display: flex;
   min-height: 100vh;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 .layout__main {
@@ -55,6 +57,11 @@ function closeSidebar() {
 @media (max-width: 768px) {
   .layout__main {
     margin-left: 0;
+    min-width: 0;
+  }
+
+  .layout__content {
+    padding: var(--space-4) var(--space-3);
   }
 
   .layout__overlay {

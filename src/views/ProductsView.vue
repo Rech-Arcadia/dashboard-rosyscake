@@ -69,27 +69,29 @@ function priceRange(product) {
 <template>
   <div class="products-page">
     <div class="products-page__header">
-      <div class="products-page__filters">
-        <button
-          class="filter-btn"
-          :class="{ 'filter-btn--active': filterCategoria === 'todos' }"
-          @click="filterCategoria = 'todos'"
-        >
-          Todos
-        </button>
-        <button
-          v-for="cat in productsStore.categorias"
-          :key="cat.value"
-          class="filter-btn"
-          :class="{ 'filter-btn--active': filterCategoria === cat.value }"
-          @click="filterCategoria = cat.value"
-        >
-          {{ cat.label }}
-        </button>
+      <div class="products-page__filters-wrapper">
+        <div class="products-page__filters">
+          <button
+            class="filter-btn"
+            :class="{ 'filter-btn--active': filterCategoria === 'todos' }"
+            @click="filterCategoria = 'todos'"
+          >
+            Todos
+          </button>
+          <button
+            v-for="cat in productsStore.categorias"
+            :key="cat.value"
+            class="filter-btn"
+            :class="{ 'filter-btn--active': filterCategoria === cat.value }"
+            @click="filterCategoria = cat.value"
+          >
+            {{ cat.label }}
+          </button>
+        </div>
       </div>
-      <BaseButton variant="primary" @click="openNewProduct">
+      <BaseButton variant="primary" class="products-page__new-btn" @click="openNewProduct">
         <Plus :size="18" />
-        Nuevo Producto
+        <span>Nuevo Producto</span>
       </BaseButton>
     </div>
 
@@ -190,8 +192,12 @@ function priceRange(product) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
   gap: var(--space-3);
+}
+
+.products-page__filters-wrapper {
+  flex: 1;
+  min-width: 0;
 }
 
 .products-page__filters {
@@ -202,6 +208,13 @@ function priceRange(product) {
   border-radius: var(--radius-lg);
   padding: var(--space-1);
   overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.products-page__filters::-webkit-scrollbar {
+  display: none;
 }
 
 .filter-btn {
@@ -363,8 +376,42 @@ function priceRange(product) {
 }
 
 @media (max-width: 640px) {
+  .products-page__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .products-page__new-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .filter-btn {
+    padding: var(--space-2);
+    font-size: var(--font-size-xs);
+  }
+
   .products-grid {
     grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+
+  .product-item__emoji {
+    width: 40px;
+    height: 40px;
+    font-size: 1.25rem;
+  }
+
+  .product-item__name {
+    font-size: var(--font-size-sm);
+  }
+
+  .product-item__price {
+    font-size: var(--font-size-base);
+  }
+
+  .size-tag {
+    font-size: 11px;
   }
 }
 </style>
