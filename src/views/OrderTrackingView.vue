@@ -82,12 +82,12 @@ onMounted(loadOrder)
           </div>
         </div>
 
-        <img
+        <!-- <img
           v-if="order.imagen_referencia_url"
           :src="order.imagen_referencia_url"
           alt="Referencia"
           class="tracking-page__reference"
-        />
+        /> -->
       </div>
 
       <footer class="tracking-page__footer">
@@ -122,8 +122,8 @@ onMounted(loadOrder)
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: #FEC2D6;
-  color: #3B1815;
+  background: #fec2d6;
+  color: #3b1815;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -132,7 +132,7 @@ onMounted(loadOrder)
 .tracking-page__title {
   margin: 0;
   font-size: 1.25rem;
-  color: #3B1815;
+  color: #3b1815;
 }
 
 .tracking-page__tagline {
@@ -150,7 +150,9 @@ onMounted(loadOrder)
   color: #6b4f4d;
 }
 
-.tracking-page__state--error { color: #b42318; }
+.tracking-page__state--error {
+  color: #b42318;
+}
 
 .tracking-page__card {
   background: white;
@@ -175,11 +177,14 @@ onMounted(loadOrder)
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  color: #3B1815;
+  color: #3b1815;
   font-size: 0.92rem;
 }
 
-.detail-row :deep(svg) { color: #c48b9b; flex-shrink: 0; }
+.detail-row :deep(svg) {
+  color: #c48b9b;
+  flex-shrink: 0;
+}
 
 .tracking-page__reference {
   width: 100%;
