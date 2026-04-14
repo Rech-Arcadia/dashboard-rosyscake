@@ -54,6 +54,12 @@ const router = createRouter({
       component: () => import('@/views/PublicOrderForm.vue'),
       meta: { requiresAuth: false, title: "Hacer Pedido - Rosy's Cake" },
     },
+    {
+      path: '/pedido/seguimiento/:id',
+      name: 'order-tracking',
+      component: () => import('@/views/OrderTrackingView.vue'),
+      meta: { requiresAuth: false, title: "Seguimiento - Rosy's Cake" },
+    },
   ],
 })
 

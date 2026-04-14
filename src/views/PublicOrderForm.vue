@@ -1,8 +1,29 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { Cake, CheckCircle, Phone, User, MapPin, Calendar, MessageCircle, Package, Hash, DollarSign, Banknote, CreditCard, ArrowLeftRight, Upload, FileCheck } from 'lucide-vue-next'
+import {
+  Cake,
+  Phone,
+  User,
+  MapPin,
+  Calendar,
+  MessageCircle,
+  Package,
+  Hash,
+  DollarSign,
+  Banknote,
+  CreditCard,
+  ArrowLeftRight,
+  Upload,
+  FileCheck,
+  Image as ImageIcon,
+  Copy,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-vue-next'
 import { supabase } from '@/lib/supabase'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import OrderStatusTracker from '@/components/public/OrderStatusTracker.vue'
 
 const form = ref({
   cliente: '',
@@ -24,10 +45,67 @@ const currentStep = ref(1)
 const comprobanteFile = ref(null)
 const comprobantePreview = ref('')
 
+const referenciaFile = ref(null)
+const referenciaPreview = ref('')
+
+const submittedOrder = ref(null)
+const trackingLinkCopied = ref(false)
+
+const trackingLink = computed(() => {
+  if (!submittedOrder.value) return ''
+  return `${window.location.origin}/pedido/seguimiento/${submittedOrder.value.id}`
+})
+
+function handleReferenciaChange(event) {
+  const file = event.target.files?.[0]
+  if (!file) {
+    referenciaFile.value = null
+    referenciaPreview.value = ''
+    return
+  }
+  referenciaFile.value = file
+  referenciaPreview.value = URL.createObjectURL(file)
+}
+
+async function uploadReferencia() {
+  if (!referenciaFile.value) return null
+  const file = referenciaFile.value
+  const ext = file.name.split('.').pop()
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`
+  const { error: uploadError } = await supabase.storage
+    .from('referencias')
+    .upload(fileName, file, { cacheControl: '3600', upsert: false })
+  if (uploadError) throw uploadError
+  const { data } = supabase.storage.from('referencias').getPublicUrl(fileName)
+  return data.publicUrl
+}
+
+async function copyTrackingLink() {
+  try {
+    await navigator.clipboard.writeText(trackingLink.value)
+    trackingLinkCopied.value = true
+    setTimeout(() => {
+      trackingLinkCopied.value = false
+    }, 2000)
+  } catch {
+    // clipboard may be unavailable
+  }
+}
+
 const metodosPago = [
   { value: 'efectivo', label: 'Efectivo', description: 'Paga al recibir', icon: Banknote },
-  { value: 'transferencia', label: 'Transferencia', description: 'Sube tu comprobante', icon: ArrowLeftRight },
-  { value: 'tarjeta', label: 'Tarjeta (Mercado Pago)', description: 'Te enviamos el link de pago', icon: CreditCard },
+  {
+    value: 'transferencia',
+    label: 'Transferencia',
+    description: 'Sube tu comprobante',
+    icon: ArrowLeftRight,
+  },
+  {
+    value: 'tarjeta',
+    label: 'Tarjeta (Mercado Pago)',
+    description: 'Te enviamos el link de pago',
+    icon: CreditCard,
+  },
 ]
 
 function handleComprobanteChange(event) {
@@ -82,6 +160,37 @@ const activeSizes = computed(() => {
   return selectedProduct.value.product_sizes || []
 })
 
+// Product pagination
+const PRODUCTS_PER_PAGE = 6
+const productPage = ref(0)
+const totalProductPages = computed(() =>
+  Math.max(1, Math.ceil(productos.value.length / PRODUCTS_PER_PAGE)),
+)
+const paginatedProducts = computed(() => {
+  const start = productPage.value * PRODUCTS_PER_PAGE
+  return productos.value.slice(start, start + PRODUCTS_PER_PAGE)
+})
+function prevProductPage() {
+  if (productPage.value > 0) productPage.value--
+}
+function nextProductPage() {
+  if (productPage.value < totalProductPages.value - 1) productPage.value++
+}
+function goToProductPage(i) {
+  productPage.value = i
+}
+
+// Swipe support for mobile
+let touchStartX = 0
+function onProductsTouchStart(e) {
+  touchStartX = e.touches[0].clientX
+}
+function onProductsTouchEnd(e) {
+  const dx = e.changedTouches[0].clientX - touchStartX
+  if (dx > 50) prevProductPage()
+  else if (dx < -50) nextProductPage()
+}
+
 function selectProduct(product) {
   selectedProduct.value = product
   form.value.producto = product.nombre
@@ -110,7 +219,8 @@ function canGoNext() {
   }
   if (currentStep.value === 2) return !!form.value.cliente && !!form.value.telefono
   if (currentStep.value === 3) {
-    if (!form.value.lugar_entrega || !form.value.fecha_entrega || !form.value.total_venta) return false
+    if (!form.value.lugar_entrega || !form.value.fecha_entrega || !form.value.total_venta)
+      return false
     if (!form.value.metodo_pago) return false
     if (form.value.metodo_pago === 'transferencia' && !comprobanteFile.value) return false
     return true
@@ -144,18 +254,27 @@ async function handleSubmit() {
       comprobante_url = await uploadComprobante()
     }
 
-    const { error: insertError } = await supabase.from('orders').insert([
-      {
-        ...form.value,
-        cantidad: Number(form.value.cantidad),
-        total_venta: Number(form.value.total_venta),
-        estado: 'pendiente',
-        origen: 'formulario_publico',
-        comprobante_url,
-      },
-    ])
+    const imagen_referencia_url = await uploadReferencia()
+
+    const { data: inserted, error: insertError } = await supabase
+      .from('orders')
+      .insert([
+        {
+          ...form.value,
+          cantidad: Number(form.value.cantidad),
+          total_venta: Number(form.value.total_venta),
+          fecha_entrega: new Date(form.value.fecha_entrega).toISOString(),
+          estado: 'pendiente',
+          origen: 'formulario_publico',
+          comprobante_url,
+          imagen_referencia_url,
+        },
+      ])
+      .select()
+      .single()
 
     if (insertError) throw insertError
+    submittedOrder.value = inserted
     submitted.value = true
   } catch (err) {
     error.value = 'Hubo un error al enviar tu pedido. Intenta de nuevo.'
@@ -178,6 +297,10 @@ function resetForm() {
   }
   comprobanteFile.value = null
   comprobantePreview.value = ''
+  referenciaFile.value = null
+  referenciaPreview.value = ''
+  submittedOrder.value = null
+  trackingLinkCopied.value = false
   submitted.value = false
   error.value = ''
   currentStep.value = 1
@@ -208,32 +331,28 @@ function resetForm() {
       </header>
 
       <!-- Success -->
-      <div v-if="submitted" class="success">
+      <div v-if="submitted && submittedOrder" class="success">
         <div class="success__card">
-          <div class="success__icon-wrapper">
-            <div class="success__icon">
-              <CheckCircle :size="40" />
-            </div>
-          </div>
           <h2 class="success__title">¡Pedido enviado!</h2>
           <p class="success__text">
-            Tu pedido ha sido registrado exitosamente.<br />
-            Nos pondremos en contacto contigo pronto para confirmar los detalles.
+            Guarda este link para ver el estado de tu pedido en cualquier momento.
           </p>
-          <div class="success__summary">
-            <div class="success__row">
-              <span>Producto</span>
-              <strong>{{ form.producto }}</strong>
-            </div>
-            <div class="success__row">
-              <span>Cantidad</span>
-              <strong>{{ form.cantidad }}</strong>
-            </div>
-            <div class="success__row">
-              <span>Cliente</span>
-              <strong>{{ form.cliente }}</strong>
-            </div>
+
+          <OrderStatusTracker :estado="submittedOrder.estado" />
+
+          <div class="tracking-link">
+            <input
+              :value="trackingLink"
+              readonly
+              class="tracking-link__input"
+              @focus="$event.target.select()"
+            />
+            <button type="button" class="tracking-link__btn" @click="copyTrackingLink">
+              <component :is="trackingLinkCopied ? Check : Copy" :size="18" />
+              <span>{{ trackingLinkCopied ? 'Copiado' : 'Copiar' }}</span>
+            </button>
           </div>
+
           <BaseButton variant="primary" size="lg" block @click="resetForm">
             Hacer otro pedido
           </BaseButton>
@@ -262,7 +381,13 @@ function resetForm() {
             </button>
           </div>
           <p class="progress__label">
-            {{ currentStep === 1 ? '¿Qué te gustaría?' : currentStep === 2 ? 'Tus datos' : 'Entrega y pago' }}
+            {{
+              currentStep === 1
+                ? '¿Qué te gustaría?'
+                : currentStep === 2
+                  ? 'Tus datos'
+                  : 'Entrega y pago'
+            }}
           </p>
         </div>
 
@@ -279,21 +404,67 @@ function resetForm() {
             </div>
 
             <template v-else>
-              <div class="products">
+              <div class="products-carousel">
                 <button
-                  v-for="prod in productos"
-                  :key="prod.id"
                   type="button"
-                  class="product-card"
-                  :class="{ 'product-card--selected': selectedProduct?.id === prod.id }"
-                  @click="selectProduct(prod)"
+                  class="products-nav products-nav--prev"
+                  :disabled="productPage === 0"
+                  @click="prevProductPage"
+                  aria-label="Anterior"
                 >
-                  <span class="product-card__emoji">{{ prod.emoji }}</span>
-                  <span class="product-card__name">{{ prod.nombre }}</span>
-                  <span v-if="prod.product_sizes.length" class="product-card__price">
-                    Desde ${{ Math.min(...prod.product_sizes.map(s => Number(s.precio))).toLocaleString() }}
-                  </span>
+                  <ChevronLeft :size="20" />
                 </button>
+
+                <div
+                  class="products-viewport"
+                  @touchstart.passive="onProductsTouchStart"
+                  @touchend.passive="onProductsTouchEnd"
+                >
+                  <transition :name="'slide'" mode="out-in">
+                    <div :key="productPage" class="products">
+                      <button
+                        v-for="prod in paginatedProducts"
+                        :key="prod.id"
+                        type="button"
+                        class="product-card"
+                        :class="{ 'product-card--selected': selectedProduct?.id === prod.id }"
+                        @click="selectProduct(prod)"
+                      >
+                        <span class="product-card__emoji">{{ prod.emoji }}</span>
+                        <span class="product-card__name">{{ prod.nombre }}</span>
+                        <span v-if="prod.product_sizes.length" class="product-card__price">
+                          Desde ${{
+                            Math.min(
+                              ...prod.product_sizes.map((s) => Number(s.precio)),
+                            ).toLocaleString()
+                          }}
+                        </span>
+                      </button>
+                    </div>
+                  </transition>
+                </div>
+
+                <button
+                  type="button"
+                  class="products-nav products-nav--next"
+                  :disabled="productPage >= totalProductPages - 1"
+                  @click="nextProductPage"
+                  aria-label="Siguiente"
+                >
+                  <ChevronRight :size="20" />
+                </button>
+              </div>
+
+              <div v-if="totalProductPages > 1" class="products-dots">
+                <button
+                  v-for="i in totalProductPages"
+                  :key="i"
+                  type="button"
+                  class="products-dot"
+                  :class="{ 'products-dot--active': productPage === i - 1 }"
+                  :aria-label="`Página ${i}`"
+                  @click="goToProductPage(i - 1)"
+                />
               </div>
 
               <!-- Size selection -->
@@ -312,8 +483,12 @@ function resetForm() {
                     @click="selectSize(size)"
                   >
                     <span class="size-card__name">{{ size.nombre }}</span>
-                    <span class="size-card__price">${{ Number(size.precio).toLocaleString() }}</span>
-                    <span v-if="size.descripcion" class="size-card__desc">{{ size.descripcion }}</span>
+                    <span class="size-card__price"
+                      >${{ Number(size.precio).toLocaleString() }}</span
+                    >
+                    <span v-if="size.descripcion" class="size-card__desc">{{
+                      size.descripcion
+                    }}</span>
                   </button>
                 </div>
               </div>
@@ -325,7 +500,13 @@ function resetForm() {
                 Cantidad
               </label>
               <div class="quantity">
-                <button type="button" class="quantity__btn" @click="form.cantidad > 1 && form.cantidad--">−</button>
+                <button
+                  type="button"
+                  class="quantity__btn"
+                  @click="form.cantidad > 1 && form.cantidad--"
+                >
+                  −
+                </button>
                 <span class="quantity__value">{{ form.cantidad }}</span>
                 <button type="button" class="quantity__btn" @click="form.cantidad++">+</button>
               </div>
@@ -343,6 +524,37 @@ function resetForm() {
                 placeholder='Ej: "Feliz cumpleaños Ana"'
               />
             </div>
+
+            <div class="step__field">
+              <label class="field__label">
+                <ImageIcon :size="16" />
+                Imagen de referencia
+                <span class="field__optional">opcional</span>
+              </label>
+              <label class="upload">
+                <input
+                  type="file"
+                  accept="image/*"
+                  class="upload__input"
+                  @change="handleReferenciaChange"
+                />
+                <template v-if="!referenciaFile">
+                  <Upload :size="22" />
+                  <span class="upload__text">Toca para subir una foto del pastel que quieres</span>
+                  <span class="upload__hint">Nos ayuda a saber exactamente cómo lo imaginas</span>
+                </template>
+                <template v-else>
+                  <img
+                    v-if="referenciaPreview"
+                    :src="referenciaPreview"
+                    alt="Referencia"
+                    class="upload__preview"
+                  />
+                  <span class="upload__text">{{ referenciaFile.name }}</span>
+                  <span class="upload__hint">Toca para cambiar</span>
+                </template>
+              </label>
+            </div>
           </div>
 
           <!-- Step 2: Customer info -->
@@ -355,12 +567,7 @@ function resetForm() {
                 <User :size="16" />
                 Nombre completo
               </label>
-              <input
-                v-model="form.cliente"
-                class="field__input"
-                placeholder="Tu nombre"
-                required
-              />
+              <input v-model="form.cliente" class="field__input" placeholder="Tu nombre" required />
             </div>
 
             <div class="step__field">
@@ -478,7 +685,9 @@ function resetForm() {
             <!-- Tarjeta: nota -->
             <div v-if="form.metodo_pago === 'tarjeta'" class="payment-note">
               <CreditCard :size="18" />
-              <span>Te enviaremos un link de Mercado Pago por WhatsApp para completar el pago.</span>
+              <span
+                >Te enviaremos un link de Mercado Pago por WhatsApp para completar el pago.</span
+              >
             </div>
 
             <!-- Order preview -->
@@ -506,11 +715,15 @@ function resetForm() {
               </div>
               <div v-if="form.metodo_pago" class="preview__row">
                 <span>Método de pago</span>
-                <span>{{ metodosPago.find(m => m.value === form.metodo_pago)?.label }}</span>
+                <span>{{ metodosPago.find((m) => m.value === form.metodo_pago)?.label }}</span>
               </div>
               <div class="preview__row preview__row--total">
                 <span>Total</span>
-                <span>{{ form.total_venta ? `$${(Number(form.total_venta) * form.cantidad).toFixed(2)}` : '—' }}</span>
+                <span>{{
+                  form.total_venta
+                    ? `$${(Number(form.total_venta) * form.cantidad).toFixed(2)}`
+                    : '—'
+                }}</span>
               </div>
             </div>
           </div>
@@ -519,12 +732,7 @@ function resetForm() {
 
           <!-- Navigation buttons -->
           <div class="nav-buttons">
-            <BaseButton
-              v-if="currentStep > 1"
-              variant="ghost"
-              size="lg"
-              @click="prevStep"
-            >
+            <BaseButton v-if="currentStep > 1" variant="ghost" size="lg" @click="prevStep">
               Anterior
             </BaseButton>
             <div v-else />
@@ -717,7 +925,9 @@ function resetForm() {
 .form-wrapper {
   background: var(--color-bg);
   border-radius: var(--radius-xl);
-  box-shadow: 0 4px 24px rgba(59, 24, 21, 0.06), 0 1px 4px rgba(59, 24, 21, 0.04);
+  box-shadow:
+    0 4px 24px rgba(59, 24, 21, 0.06),
+    0 1px 4px rgba(59, 24, 21, 0.04);
   padding: var(--space-8);
   border: 1px solid rgba(254, 194, 214, 0.2);
 }
@@ -781,10 +991,96 @@ function resetForm() {
   box-shadow: 0 0 0 4px rgba(254, 194, 214, 0.2);
 }
 
+/* Products carousel */
+.products-carousel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.products-viewport {
+  flex: 1;
+  /* overflow: hidden; */
+  min-width: 0;
+  position: relative;
+}
+
+.products-nav {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-radius: var(--radius-full, 999px);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+.products-nav:hover:not(:disabled) {
+  background: var(--color-accent-light);
+  border-color: var(--color-accent);
+  color: var(--color-accent-hover);
+}
+
+.products-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.products-dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.products-dot {
+  width: 8px;
+  height: 8px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-border);
+  cursor: pointer;
+  padding: 0;
+  transition: all var(--transition-fast);
+}
+
+.products-dot:hover {
+  background: var(--color-text-muted);
+}
+
+.products-dot--active {
+  width: 24px;
+  border-radius: 999px;
+  background: var(--color-accent);
+}
+
+/* Slide transition */
+.slide-enter-active,
+.slide-leave-active {
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+.slide-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+.slide-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
 /* Product cards */
 .products {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 120px);
   gap: var(--space-3);
 }
 
@@ -792,14 +1088,18 @@ function resetForm() {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
-  padding: var(--space-4) var(--space-3);
+  padding: var(--space-3);
   background: var(--color-bg-secondary);
   border: 2px solid transparent;
   border-radius: var(--radius-lg);
   cursor: pointer;
   transition: all var(--transition-fast);
   text-align: center;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .product-card:hover {
@@ -828,11 +1128,21 @@ function resetForm() {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   color: var(--color-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+  max-width: 100%;
+  word-break: break-word;
 }
 
 .product-card__price {
   font-size: 10px;
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 /* Size cards */
@@ -1133,6 +1443,48 @@ function resetForm() {
   margin-bottom: var(--space-6);
 }
 
+.tracking-link {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-5) 0;
+}
+
+.tracking-link__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #f5e9ec;
+  border-radius: var(--radius-md);
+  background: #fffafb;
+  font-size: 0.85rem;
+  color: #6b4f4d;
+  font-family: inherit;
+}
+
+.tracking-link__input:focus {
+  outline: none;
+  border-color: #fec2d6;
+}
+
+.tracking-link__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 1rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: #fec2d6;
+  color: #3b1815;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: transform 0.15s;
+}
+
+.tracking-link__btn:hover {
+  transform: translateY(-1px);
+}
+
 .success__summary {
   background: var(--color-bg-secondary);
   border-radius: var(--radius-lg);
@@ -1161,9 +1513,17 @@ function resetForm() {
 }
 
 @keyframes pop {
-  0% { transform: scale(0.5); opacity: 0; }
-  70% { transform: scale(1.1); }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1177,6 +1537,12 @@ function resetForm() {
 
   .products {
     grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(3, 110px);
+  }
+
+  .products-nav {
+    width: 32px;
+    height: 32px;
   }
 
   .payment-methods {

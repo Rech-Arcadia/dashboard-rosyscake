@@ -15,6 +15,12 @@ const props = defineProps({
 const emit = defineEmits(['save', 'cancel'])
 const productsStore = useProductsStore()
 
+function toLocalDatetimeInput(value) {
+  const d = new Date(value)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 const form = ref({
   cliente: props.order?.cliente ?? '',
   telefono: props.order?.telefono ?? '',
@@ -24,7 +30,7 @@ const form = ref({
   total_venta: props.order?.total_venta ?? '',
   lugar_entrega: props.order?.lugar_entrega ?? '',
   fecha_entrega: props.order?.fecha_entrega
-    ? new Date(props.order.fecha_entrega).toISOString().slice(0, 16)
+    ? toLocalDatetimeInput(props.order.fecha_entrega)
     : '',
   estado: props.order?.estado ?? 'pendiente',
   metodo_pago: props.order?.metodo_pago ?? 'efectivo',
@@ -96,6 +102,7 @@ async function handleSubmit() {
       ...form.value,
       cantidad: Number(form.value.cantidad),
       total_venta: Number(form.value.total_venta),
+      fecha_entrega: new Date(form.value.fecha_entrega).toISOString(),
       origen: 'dashboard',
     }
     emit('save', data)
