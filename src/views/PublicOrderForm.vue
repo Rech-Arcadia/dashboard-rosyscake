@@ -1537,7 +1537,23 @@ function resetForm() {
 
   .products {
     grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: repeat(3, 110px);
+    grid-template-rows: repeat(3, auto);
+  }
+
+  .product-card {
+    min-height: 140px;
+    padding: var(--space-3) var(--space-2);
+    gap: var(--space-1);
+  }
+
+  .product-card__emoji {
+    font-size: 1.75rem;
+  }
+
+  .product-card__name {
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    font-size: var(--font-size-sm);
   }
 
   .products-nav {
