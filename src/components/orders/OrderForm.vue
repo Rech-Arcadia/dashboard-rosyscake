@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useProductsStore } from '@/stores/products'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
@@ -72,21 +72,35 @@ const sizeOptions = computed(() => {
     }))
 })
 
+const unitPrice = ref(0)
+
 function onSizeChange(sizeId) {
   const opt = sizeOptions.value.find((s) => s.value === sizeId)
   if (opt) {
-    form.value.total_venta = opt.precio
+    unitPrice.value = Number(opt.precio)
+    form.value.total_venta = unitPrice.value * Number(form.value.cantidad || 1)
   }
 }
 
 function onProductChange() {
   selectedSize.value = ''
+  unitPrice.value = 0
   // Auto-set price if only one size
   if (sizeOptions.value.length === 1) {
     selectedSize.value = sizeOptions.value[0].value
-    form.value.total_venta = sizeOptions.value[0].precio
+    unitPrice.value = Number(sizeOptions.value[0].precio)
+    form.value.total_venta = unitPrice.value * Number(form.value.cantidad || 1)
   }
 }
+
+watch(
+  () => form.value.cantidad,
+  (nuevaCantidad) => {
+    if (unitPrice.value > 0) {
+      form.value.total_venta = unitPrice.value * Number(nuevaCantidad || 1)
+    }
+  },
+)
 
 const statusOptions = [
   { value: 'pendiente', label: 'Pendiente' },
