@@ -365,6 +365,13 @@ const comprobanteIsImage = computed(() => {
                 {{ order.origen === 'formulario_publico' ? 'Formulario público' : 'Dashboard' }}
               </span>
             </div>
+            <div class="summary__row">
+              <span class="summary__row-label">
+                <Clock :size="16" />
+                Registrado
+              </span>
+              <span class="summary__row-value">{{ formatDate(order.created_at) }}</span>
+            </div>
           </BaseCard>
 
           <BaseCard padding="lg" class="status-change">

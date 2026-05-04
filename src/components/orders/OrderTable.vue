@@ -81,6 +81,7 @@ function viewOrder(id) {
               <th>Cliente</th>
               <th>Producto</th>
               <th class="text-center">Cant.</th>
+              <th>Registrado</th>
               <th>Entrega</th>
               <th class="text-right">Total</th>
               <th>Estado</th>
@@ -106,6 +107,9 @@ function viewOrder(id) {
               <td class="table__product">{{ order.producto }}</td>
               <td class="text-center">
                 <span class="table__qty">×{{ order.cantidad }}</span>
+              </td>
+              <td>
+                <span class="table__registered">{{ formatDate(order.created_at) }}</span>
               </td>
               <td>
                 <div class="table__delivery">
@@ -171,6 +175,7 @@ function viewOrder(id) {
             >
               {{ deliveryHint(order.fecha_entrega).text }}
             </span>
+            <span class="order-card__registered">Registrado: {{ formatDate(order.created_at) }}</span>
           </div>
           <span class="order-card__total">{{ formatCurrency(order.total_venta) }}</span>
         </div>
@@ -316,6 +321,12 @@ function viewOrder(id) {
 .table__delivery-date {
   font-size: var(--font-size-sm);
   color: var(--color-text);
+  white-space: nowrap;
+}
+
+.table__registered {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 
@@ -606,6 +617,12 @@ function viewOrder(id) {
 .order-card__hint--late { color: #dc2626; }
 .order-card__hint--soon { color: #2563eb; }
 .order-card__hint--normal { color: var(--color-text-muted); }
+
+.order-card__registered {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
 
 .order-card__total {
   font-size: var(--font-size-lg, 1.125rem);
